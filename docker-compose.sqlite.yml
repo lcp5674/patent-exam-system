@@ -1,0 +1,25 @@
+# ============================================
+# 专利审查辅助系统 - SQLite 数据库配置
+# 使用方法:
+#   docker-compose -f docker-compose.yml -f docker-compose.sqlite.yml up -d
+# ============================================
+
+version: "3.8"
+
+services:
+  # ========================================
+  # 后端服务 (使用 SQLite)
+  # ========================================
+  backend:
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/patent_exam.db
+    volumes:
+      - backend-data:/app/data
+
+volumes:
+  backend-data:
+    driver: local
+
+networks:
+  patent-net:
+    external: true

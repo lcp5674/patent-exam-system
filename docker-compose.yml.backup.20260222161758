@@ -1,0 +1,167 @@
+# ============================================
+# 专利审查辅助系统 - Docker Compose 配置
+# 默认使用 PostgreSQL 数据库
+# ============================================
+# 
+# 使用方法:
+#   docker-compose up -d
+#
+# ============================================
+
+services:
+
+  # ========================================
+  # PostgreSQL 数据库
+  # ========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: patent-exam-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-patent_exam}
+      POSTGRES_USER: ${POSTGRES_USER:-patent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-patent123}
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - patent-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-patent} -d ${POSTGRES_DB:-patent_exam}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================================
+  # Redis 缓存服务
+  # ========================================
+  redis:
+    image: redis:7-alpine
+    container_name: patent-exam-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - patent-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================================
+  # ChromaDB 向量数据库
+  # ========================================
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: patent-exam-chromadb
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+      - ALLOW_RESET=TRUE
+    volumes:
+      - chromadb-data:/chroma/chroma
+    networks:
+      - patent-net
+
+  # ========================================
+  # 后端服务
+  # ========================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: patent-exam-system-backend:latest
+    container_name: patent-exam-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-patent}:${POSTGRES_PASSWORD:-patent123}@postgres:5432/${POSTGRES_DB:-patent_exam}
+      - UPLOAD_DIR=/app/data/uploads
+      - TZ=Asia/Shanghai
+      - PYTHONTZ=Asia/Shanghai
+      - CHROMA_HOST=patent-exam-chromadb
+      - CHROMA_PORT=8000
+      - HF_ENDPOINT=https://hf-mirror.com
+      - DEBUG=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./backend:/app
+      - ./backend/data:/app/data
+      - backend-logs:/app/data/logs
+    networks:
+      - patent-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ========================================
+  # 前端服务 (Nginx)
+  # ========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: patent-exam-system-frontend:latest
+    container_name: patent-exam-frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - frontend-nginx-cache:/var/cache/nginx
+    networks:
+      - patent-net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# ========================================
+# 数据卷
+# ========================================
+volumes:
+  postgres-data:
+    driver: local
+  backend-data:
+    driver: local
+  backend-logs:
+    driver: local
+  frontend-nginx-cache:
+    driver: local
+  chromadb-data:
+    driver: local
+  redis-data:
+    driver: local
+
+# ========================================
+# 网络
+# ========================================
+networks:
+  patent-net:
+    driver: bridge

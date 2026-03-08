@@ -1,0 +1,57 @@
+# Backend .dockerignore
+# Exclude unnecessary files to speed up build
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Git
+.git/
+.gitignore
+
+# Docs
+*.md
+docs/
+
+# Data and logs
+data/
+logs/
+*.log
+
+# Environment
+.env
+.env.*
+
+# Misc
+*.sqlite
+*.db
+.DS_Store
+Thumbs.db
+
+# Frontend (not needed for backend build)
+frontend/
+www/

@@ -1,0 +1,166 @@
+# CrewAI Task 配置
+# 专利数据爬取和RAG增强系统
+
+discover_patents_task:
+  description: >
+    Search and collect patent data from {source} patent office.
+    Use query: "{query}" and limit results to {limit} patents.
+    Focus on high-quality, relevant patents with complete metadata.
+
+    For each patent, ensure you collect:
+    - Patent ID (公开号/公告号)
+    - Title (标题)
+    - Abstract (摘要)
+    - Claims (权利要求)
+    - Application Date (申请日)
+    - Publication Date (公开日)
+    - IPC/CPC Classifications (分类号)
+    - Applicants (申请人)
+    - Inventors (发明人)
+    - Technical Field (技术领域)
+    - Full Text (全文，如可用)
+
+    Handle rate limits gracefully and implement retry logic for failed requests.
+    Validate data completeness and flag any missing critical fields.
+  expected_output: >
+    A structured list of patent objects with complete metadata for {limit} patents from {source},
+    ready for processing and embedding. Format: List[Dict[str, Any]]
+  agent: senior_patent_researcher
+  tools:
+    - Patent Crawler
+  async_execution: true
+  callback: null
+
+process_and_embed_task:
+  description: >
+    Process the raw patent data collected from {source} and generate high-quality embeddings.
+
+    For each patent:
+    1. Clean and normalize text fields (title, abstract, claims)
+    2. Extract and validate key technical terms and concepts
+    3. Generate patent fingerprint using multi-dimensional vectors:
+       - Structural vector (document structure)
+       - Technical vector (technical content)
+       - Legal vector (legal language patterns)
+       - Semantic vector (semantic meaning)
+       - Innovation vector (innovation indicators)
+    4. Store embeddings in vector database with proper metadata
+
+    Ensure embeddings capture:
+    - Technical domain and field
+    - Key innovations and claims
+    - Patent classification (IPC/CPC)
+    - Citation relationships (if available)
+    - Temporal information (dates)
+
+    Optimize for retrieval accuracy and semantic search performance.
+  expected_output: >
+    A confirmation that {count} patents have been successfully processed, embedded, and stored
+    in the vector database collection "{collection_name}". Include statistics on embedding quality
+    and any processing issues encountered.
+  agent: patent_data_engineer
+  tools:
+    - Embedding Generator
+    - Vector Store
+  async_execution: true
+  context:
+    - discover_patents_task
+  callback: null
+
+optimize_rag_task:
+  description: >
+    Optimize the RAG retrieval system for the newly added patent collection "{collection_name}".
+
+    Perform the following optimization steps:
+    1. Generate test queries based on typical patent examination scenarios
+    2. Evaluate retrieval performance (recall@k, precision@k, MRR, NDCG)
+    3. If recall rate < 95% or accuracy < 95%:
+       - Implement query expansion with synonyms and related terms
+       - Adjust embedding model parameters or consider model fine-tuning
+       - Implement hybrid search (vector + keyword)
+       - Add reranking with cross-encoder models
+       - Optimize metadata filtering and boosting
+    4. Validate improvements through A/B testing
+    5. Document optimization results and parameters
+
+    Focus on patent-specific optimization:
+    - IPC/CPC classification weighting
+    - Citation graph enhancement
+    - Technical feature extraction and weighting
+    - Inventor/applicant relationship graphs
+
+    Ensure final recall rate > 95% and accuracy > 95%.
+  expected_output: >
+    A detailed optimization report including:
+    - Initial performance metrics
+    - Optimizations applied
+    - Final performance metrics (recall > 95%, accuracy > 95%)
+    - Recommendations for ongoing monitoring and tuning
+    - Configuration parameters for optimal performance
+  agent: rag_optimization_specialist
+  tools:
+    - Embedding Generator
+    - Vector Store
+  async_execution: true
+  context:
+    - process_and_embed_task
+  callback: null
+
+quality_review_task:
+  description: >
+    Perform comprehensive quality assurance on the patent data collection "{collection_name}".
+
+    Quality checks to perform:
+    1. Data Completeness (99%+ requirement):
+       - Verify all patents have required fields (ID, title, abstract, claims, dates)
+       - Check for missing or null values in critical fields
+       - Validate data format consistency
+
+    2. Data Accuracy:
+       - Verify patent IDs match expected formats
+       - Validate date ranges and logical consistency
+       - Check IPC/CPC classifications for validity
+       - Verify applicant/inventor information completeness
+
+    3. Embedding Quality:
+       - Sample check vector dimensions and values
+       - Verify embedding completeness (all patents embedded)
+       - Check for embedding anomalies or outliers
+
+    4. Retrieval Validation:
+       - Perform test searches and verify result quality
+       - Check recall and precision on sample queries
+       - Validate metadata filtering functionality
+
+    5. Log and report any issues found
+
+    If quality < 99%, flag for reprocessing.
+  expected_output: >
+    A comprehensive quality assurance report including:
+    - Data completeness percentage (target: >99%)
+    - Data accuracy assessment
+    - Embedding quality validation
+    - Retrieval performance verification
+    - List of identified issues and recommendations
+    - Overall quality score and pass/fail determination
+  agent: quality_assurance_reviewer
+  tools:
+    - Embedding Generator
+    - Vector Store
+  async_execution: false
+  context:
+    - optimize_rag_task
+  callback: null
+
+# 任务执行配置
+task_execution:
+  max_execution_time: 3600  # 最大执行时间（秒）
+  retry_on_failure: true   # 失败时重试
+  max_retries: 2           # 最大重试次数
+  use_cache: true          # 启用结果缓存
+
+# 输出配置
+output_config:
+  format: json             # 输出格式
+  include_metadata: true   # 包含元数据
+  include_statistics: true # 包含统计信息

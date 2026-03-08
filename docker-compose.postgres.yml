@@ -1,0 +1,78 @@
+# ============================================
+# 专利审查辅助系统 - PostgreSQL 数据库配置
+# 使用方法:
+#   docker-compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
+# ============================================
+
+version: "3.8"
+
+services:
+  # ========================================
+  # PostgreSQL 数据库
+  # ========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: patent-exam-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-patent_exam}
+      POSTGRES_USER: ${POSTGRES_USER:-patent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-patent123}
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - patent-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-patent} -d ${POSTGRES_DB:-patent_exam}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # 性能优化配置
+    command:
+      - postgres
+      - -c
+      - max_connections=100
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=512MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - wal_buffers=16MB
+      - -c
+      - default_statistics_target=100
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
+      - -c
+      - work_mem=4MB
+      - -c
+      - min_wal_size=1GB
+      - -c
+      - max_wal_size=4GB
+
+  # ========================================
+  # 后端服务 (重写 DATABASE_URL)
+  # ========================================
+  backend:
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-patent}:${POSTGRES_PASSWORD:-patent123}@postgres:5432/${POSTGRES_DB:-patent_exam}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+    driver: local
+
+networks:
+  patent-net:
+    external: true
