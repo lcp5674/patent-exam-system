@@ -23,7 +23,7 @@ services:
 
   # Redis缓存
   redis:
-    image: redis:7-alpine
+    image: redis:6.2-alpine
     container_name: patent-redis
     restart: always
     command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
