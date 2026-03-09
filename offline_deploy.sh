@@ -28,8 +28,50 @@ fi
 
 # 检查离线镜像目录是否存在
 if [ ! -d "offline-images" ]; then
-    echo -e "${RED}❌ 离线镜像目录 offline-images 不存在，请确认离线包完整${NC}"
-    exit 1
+    echo -e "${YELLOW}⚠️  未检测到离线镜像目录，检测当前网络环境...${NC}"
+    
+    # 测试网络连通性
+    if curl -s --connect-timeout 5 https://www.baidu.com > /dev/null; then
+        echo -e "${GREEN}✅ 检测到网络连接，将在线拉取镜像${NC}"
+        read -p "是否继续在线部署？(y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo -e "${RED}❌ 部署已取消${NC}"
+            exit 1
+        fi
+        
+        # 在线拉取镜像
+        echo -e "${YELLOW}📥 在线拉取所需镜像...${NC}"
+        docker compose pull
+        echo -e "${GREEN}✅ 镜像拉取完成${NC}"
+    else
+        echo -e "${RED}❌ 无网络连接且未找到离线镜像目录${NC}"
+        echo "请在有网络的环境下执行 ./build_offline_package.sh 构建离线部署包"
+        exit 1
+    fi
+else
+    # 导入镜像
+    echo -e "${YELLOW}📥 导入Docker镜像（这可能需要几分钟时间，请耐心等待）...${NC}"
+    cd offline-images
+    total_imgs=$(ls -1 *.tar 2>/dev/null | wc -l)
+    current=0
+
+    for img in *.tar; do
+        current=$((current + 1))
+        echo -n "[$current/$total_imgs] 导入 $img..."
+        if docker load -i "$img" > /dev/null 2>&1; then
+            echo -e " ${GREEN}完成${NC}"
+        else
+            echo -e " ${RED}失败${NC}"
+            echo "错误：导入镜像 $img 失败，请检查文件完整性"
+            exit 1
+        fi
+    done
+    cd ..
+
+    echo ""
+    echo -e "${GREEN}✅ 镜像导入完成，已导入的镜像：${NC}"
+    docker images | grep -E "(postgres|redis|etcd|minio|milvus|nginx|python|node|patent)" | awk '{print "  - " $1 ":" $2}'
 fi
 
 # 导入镜像
