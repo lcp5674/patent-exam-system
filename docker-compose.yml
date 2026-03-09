@@ -8,7 +8,8 @@ x-common-config: &common-config
   dns_opt:
     - timeout:2
     - attempts:3
-  network_mode: bridge
+  networks:
+    - patent-network
 
 services:
   # PostgreSQL数据库
