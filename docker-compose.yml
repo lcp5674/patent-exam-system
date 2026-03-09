@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # PostgreSQL数据库
   postgres:
-    image: docker.io/library/postgres:16-alpine
+    image: registry.cn-hangzhou.aliyuncs.com/library/postgres:16-alpine
     container_name: patent-postgres
     restart: always
     environment:
@@ -23,7 +23,7 @@ services:
 
   # Redis缓存
   redis:
-    image: docker.io/library/redis:7-alpine
+    image: registry.cn-hangzhou.aliyuncs.com/library/redis:7-alpine
     container_name: patent-redis
     restart: always
     command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
@@ -40,7 +40,7 @@ services:
   # Milvus向量数据库
   etcd:
     container_name: patent-etcd
-    image: quay.io/coreos/etcd:v3.5.5
+    image: registry.cn-hangzhou.aliyuncs.com/coreos/etcd:v3.5.5
     restart: always
     environment:
       - ETCD_AUTO_COMPACTION_MODE=revision
@@ -60,7 +60,7 @@ services:
 
   minio:
     container_name: patent-minio
-    image: docker.io/minio/minio:RELEASE.2023-03-20T20-16-18Z
+    image: registry.cn-hangzhou.aliyuncs.com/minio/minio:RELEASE.2023-03-20T20-16-18Z
     restart: always
     environment:
       MINIO_ACCESS_KEY: minioadmin
@@ -78,7 +78,7 @@ services:
 
   milvus:
     container_name: patent-milvus
-    image: docker.io/milvusdb/milvus:v2.4.0
+    image: registry.cn-hangzhou.aliyuncs.com/milvusdb/milvus:v2.4.0
     restart: always
     command: ["milvus", "run"]
     environment:
@@ -156,7 +156,7 @@ services:
 
   # Nginx反向代理
   nginx:
-    image: docker.io/library/nginx:alpine
+    image: registry.cn-hangzhou.aliyuncs.com/library/nginx:alpine
     container_name: patent-nginx
     restart: always
     ports:
