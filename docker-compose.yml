@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # PostgreSQL数据库
   postgres:
-    image: postgres:16-alpine
+    image: docker.io/library/postgres:16-alpine
     container_name: patent-postgres
     restart: always
     environment:
@@ -23,7 +23,7 @@ services:
 
   # Redis缓存
   redis:
-    image: redis:7-alpine
+    image: docker.io/library/redis:7-alpine
     container_name: patent-redis
     restart: always
     command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
@@ -60,7 +60,7 @@ services:
 
   minio:
     container_name: patent-minio
-    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    image: docker.io/minio/minio:RELEASE.2023-03-20T20-16-18Z
     restart: always
     environment:
       MINIO_ACCESS_KEY: minioadmin
@@ -78,7 +78,7 @@ services:
 
   milvus:
     container_name: patent-milvus
-    image: milvusdb/milvus:v2.4.0
+    image: docker.io/milvusdb/milvus:v2.4.0
     restart: always
     command: ["milvus", "run"]
     environment:
@@ -86,11 +86,8 @@ services:
       MINIO_ADDRESS: minio:9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
-      QUERY_NODE:
-        gracefulTime: 5000
-      common:
-        security:
-          authorizationEnabled: false
+      QUERY_NODE_GRACEFUL_TIME: "5000"
+      COMMON_SECURITY_AUTHORIZATION_ENABLED: "false"
     volumes:
       - milvus_data:/var/lib/milvus
     depends_on:
@@ -159,7 +156,7 @@ services:
 
   # Nginx反向代理
   nginx:
-    image: nginx:alpine
+    image: docker.io/library/nginx:alpine
     container_name: patent-nginx
     restart: always
     ports:
