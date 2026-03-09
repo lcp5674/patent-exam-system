@@ -1,5 +1,5 @@
 # 构建阶段
-FROM registry.cn-hangzhou.aliyuncs.com/library/node:18-alpine AS builder
+FROM node:18-alpine AS builder
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ ARG API_BASE_URL
 RUN VITE_API_BASE_URL=$API_BASE_URL npm run build
 
 # 生产阶段
-FROM registry.cn-hangzhou.aliyuncs.com/library/nginx:alpine
+FROM nginx:alpine
 
 # 复制构建产物
 COPY --from=builder /app/dist /usr/share/nginx/html
