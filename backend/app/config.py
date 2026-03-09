@@ -155,11 +155,81 @@ class Settings:
         self.app = AppSettings()
         self.cache = CacheSettings()
         self.monitoring = MonitoringSettings()
+        self._ai_provider_cache = {}
+        self._cache_updated_at = 0
 
     def ensure_dirs(self):
         for d in [self.app.UPLOAD_DIR, self.app.LOG_DIR,
                   self.app.PATENT_DNA_STORAGE_PATH, self.app.BACKUP_DIR]:
             Path(d).mkdir(parents=True, exist_ok=True)
+    
+    async def load_ai_provider_configs(self, db_session = None):
+        """从数据库加载AI提供商配置，覆盖环境变量配置"""
+        import time
+        # 缓存5分钟
+        if self._cache_updated_at > time.time() - 300 and self._ai_provider_cache:
+            return self._ai_provider_cache
+        
+        if not db_session:
+            # 如果没有提供数据库会话，返回缓存或环境变量配置
+            return self._ai_provider_cache or self._get_env_ai_configs()
+        
+        from app.database.models import AIProviderConfig
+        result = await db_session.execute(select(AIProviderConfig).where(AIProviderConfig.is_enabled == True))
+        providers = result.scalars().all()
+        
+        configs = {}
+        default_provider = None
+        
+        for provider in providers:
+            configs[provider.provider_name] = {
+                "api_key": provider.api_key,
+                "base_url": provider.base_url,
+                "default_model": provider.default_model,
+                "is_enabled": provider.is_enabled,
+                "priority": provider.priority
+            }
+            if provider.is_default:
+                default_provider = provider.provider_name
+        
+        # 如果没有默认提供商，使用环境变量配置
+        if not default_provider:
+            default_provider = self.ai.DEFAULT_AI_PROVIDER
+        
+        self._ai_provider_cache = {
+            "providers": configs,
+            "default_provider": default_provider
+        }
+        self._cache_updated_at = time.time()
+        
+        return self._ai_provider_cache
+    
+    def _get_env_ai_configs(self):
+        """从环境变量获取AI配置"""
+        return {
+            "providers": {
+                "doubao": {
+                    "api_key": self.ai.DOUBAO_API_KEY,
+                    "base_url": self.ai.DOUBAO_BASE_URL,
+                    "default_model": self.ai.DOUBAO_DEFAULT_MODEL,
+                    "is_enabled": bool(self.ai.DOUBAO_API_KEY),
+                    "priority": 10
+                },
+                "openai": {
+                    "api_key": self.ai.OPENAI_API_KEY,
+                    "base_url": self.ai.OPENAI_BASE_URL,
+                    "default_model": self.ai.OPENAI_DEFAULT_MODEL,
+                    "is_enabled": bool(self.ai.OPENAI_API_KEY),
+                    "priority": 20
+                }
+            },
+            "default_provider": self.ai.DEFAULT_AI_PROVIDER
+        }
+    
+    def clear_ai_config_cache(self):
+        """清除AI配置缓存"""
+        self._ai_provider_cache = {}
+        self._cache_updated_at = 0
 
 
 settings = Settings()
