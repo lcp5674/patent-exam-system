@@ -1,10 +1,22 @@
 version: '3.8'
 
+x-common-config: &common-config
+  dns:
+    - 8.8.8.8
+    - 114.114.114.114
+    - 223.5.5.5
+  dns_opt:
+    - timeout:2
+    - attempts:3
+  network_mode: bridge
+
 services:
   # PostgreSQL数据库
   postgres:
+    <<: *common-config
     image: postgres:16-alpine
     container_name: patent-postgres
+    hostname: postgres
     restart: always
     environment:
       POSTGRES_DB: patent_exam
@@ -23,8 +35,10 @@ services:
 
   # Redis缓存
   redis:
+    <<: *common-config
     image: redis:6.2-alpine
     container_name: patent-redis
+    hostname: redis
     restart: always
     command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
     volumes:
@@ -39,8 +53,10 @@ services:
 
   # Milvus向量数据库
   etcd:
+    <<: *common-config
     container_name: patent-etcd
     image: quay.io/coreos/etcd:v3.5.5
+    hostname: etcd
     restart: always
     environment:
       - ETCD_AUTO_COMPACTION_MODE=revision
@@ -59,8 +75,10 @@ services:
       - patent-network
 
   minio:
+    <<: *common-config
     container_name: patent-minio
     image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    hostname: minio
     restart: always
     environment:
       MINIO_ACCESS_KEY: minioadmin
@@ -77,8 +95,10 @@ services:
       - patent-network
 
   milvus:
+    <<: *common-config
     container_name: patent-milvus
     image: milvusdb/milvus:v2.4.0
+    hostname: milvus
     restart: always
     command: ["milvus", "run", "standalone"]
     environment:
@@ -103,10 +123,18 @@ services:
 
   # 后端API服务
   backend:
+    <<: *common-config
     build: 
       context: ./backend
       dockerfile: Dockerfile
     container_name: patent-backend
+    hostname: backend
+    links:
+      - postgres:postgres
+      - redis:redis
+      - milvus:milvus
+      - etcd:etcd
+      - minio:minio
     restart: always
     environment:
       - DATABASE_URL=postgresql+asyncpg://patent_user:${DB_PASSWORD:-patent_password}@postgres:5432/patent_exam
@@ -141,12 +169,16 @@ services:
 
   # 前端服务
   frontend:
+    <<: *common-config
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
         - API_BASE_URL=${API_BASE_URL:-/api}
     container_name: patent-frontend
+    hostname: frontend
+    links:
+      - backend:backend
     restart: always
     depends_on:
       backend:
@@ -156,8 +188,13 @@ services:
 
   # Nginx反向代理
   nginx:
+    <<: *common-config
     image: nginx:alpine
     container_name: patent-nginx
+    hostname: nginx
+    links:
+      - backend:backend
+      - frontend:frontend
     restart: always
     ports:
       - "${HTTP_PORT:-80}:80"
