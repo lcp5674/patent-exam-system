@@ -16,11 +16,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
     && pip config set global.trusted-host mirrors.aliyun.com \
-    && pip config set global.timeout 120
+    && pip config set global.timeout 120 \
+    && pip config set global.retries 5
 
-# 安装Python依赖
 COPY requirements.txt .
-RUN pip install --no-cache-dir --progress-bar off -r requirements.txt
+RUN pip install --no-cache-dir --progress-bar off -r requirements.txt --use-feature=fast-deps 2>/dev/null || pip install --no-cache-dir --progress-bar off -r requirements.txt
 
 # 复制应用代码
 COPY . .
