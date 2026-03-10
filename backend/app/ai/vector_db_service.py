@@ -1,35 +1,42 @@
 """
 企业级RAG向量数据库服务
-使用ChromaDB进行专利文档的向量存储和检索
+使用Milvus进行专利文档的向量存储和检索
 """
 import os
 import logging
 from typing import List, Dict, Optional, Any
 from dataclasses import dataclass
+from pymilvus import connections, Collection, FieldSchema, DataType, CollectionSchema, utility
 
 logger = logging.getLogger(__name__)
 
 # 延迟导入，避免启动时出错
-_chroma_client = None
-_collection = None
+_milvus_connected = False
+_collections: Dict[str, Collection] = {}
 
 
-def get_chroma_client():
-    """获取ChromaDB客户端（使用HTTP客户端连接到ChromaDB服务器）"""
-    global _chroma_client
-    if _chroma_client is None:
+def get_milvus_connection():
+    """获取Milvus连接"""
+    global _milvus_connected
+    if not _milvus_connected:
         try:
-            import chromadb
-            # 使用HTTP客户端连接到ChromaDB服务器（与enterprise_vector_db一致）
-            # 硬编码Docker内部主机名
-            chroma_host = 'chromadb'
-            chroma_port = 8000
-            _chroma_client = chromadb.HttpClient(host=chroma_host, port=chroma_port)
-            logger.info(f"ChromaDB HTTP连接: {chroma_host}:{chroma_port}")
+            from app.ai.rag.config import get_rag_settings
+            settings = get_rag_settings()
+            
+            connections.connect(
+                alias="default",
+                host=settings.MILVUS_HOST,
+                port=settings.MILVUS_PORT,
+                user=settings.MILVUS_USER,
+                password=settings.MILVUS_PASSWORD,
+                db_name=settings.MILVUS_DB_NAME
+            )
+            _milvus_connected = True
+            logger.info(f"Milvus连接成功: {settings.MILVUS_HOST}:{settings.MILVUS_PORT}")
         except Exception as e:
-            logger.error(f"初始化ChromaDB失败: {e}")
+            logger.error(f"初始化Milvus失败: {e}")
             raise
-    return _chroma_client
+    return connections.get_connection("default")
 
 
 def get_patent_collection(tenant_id: str = None):
@@ -37,15 +44,42 @@ def get_patent_collection(tenant_id: str = None):
     # 使用与enterprise_vector_db一致的集合命名规则
     collection_name = _get_tenant_collection_name(tenant_id) if tenant_id else "patent_documents"
     
-    client = get_chroma_client()
+    if collection_name in _collections:
+        return _collections[collection_name]
+    
+    get_milvus_connection()
+    
     try:
-        collection = client.get_collection(collection_name)
-    except Exception:
-        collection = client.create_collection(
-            name=collection_name,
-            metadata={"description": "专利文档向量存储", "version": "1.0"}
-        )
-    return collection
+        if utility.has_collection(collection_name):
+            collection = Collection(collection_name)
+            collection.load()
+        else:
+            # 创建集合schema
+            fields = [
+                FieldSchema(name="id", dtype=DataType.VARCHAR, is_primary=True, max_length=255),
+                FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=1024),
+                FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
+                FieldSchema(name="metadata", dtype=DataType.JSON),
+            ]
+            schema = CollectionSchema(fields, description="专利文档向量存储")
+            collection = Collection(name=collection_name, schema=schema)
+            
+            # 创建IVF_FLAT索引
+            index_params = {
+                "metric_type": "COSINE",
+                "index_type": "IVF_FLAT",
+                "params": {"nlist": 1024}
+            }
+            collection.create_index(field_name="embedding", index_params=index_params)
+            collection.load()
+            logger.info(f"创建Milvus集合: {collection_name}")
+        
+        _collections[collection_name] = collection
+        return collection
+        
+    except Exception as e:
+        logger.error(f"获取Milvus集合失败 {collection_name}: {e}")
+        raise
 
 
 def _get_tenant_collection_name(tenant_id: str = None, collection_type: str = "patents") -> str:
@@ -140,13 +174,14 @@ class VectorDatabaseService:
             chunks = self._chunk_text(content, chunk_size)
             
             ids = []
-            documents = []
+            contents = []
             metadatas = []
+            embeddings_data = []
             
             for i, chunk in enumerate(chunks):
                 chunk_id = f"{doc_id}_chunk_{i}"
                 ids.append(chunk_id)
-                documents.append(chunk)
+                contents.append(chunk)
                 metadatas.append({
                     **metadata,
                     "chunk_index": i,
@@ -157,13 +192,10 @@ class VectorDatabaseService:
             # 获取嵌入向量
             embeddings = self.get_embeddings(chunks)
             
-            # 添加到ChromaDB
-            collection.upsert(
-                ids=ids,
-                documents=documents,
-                metadatas=metadatas,
-                embeddings=embeddings
-            )
+            # 添加到Milvus
+            data = [ids, embeddings, contents, metadatas]
+            collection.insert(data)
+            collection.flush()
             
             logger.info(f"文档 {doc_id} 已添加到向量库，共 {len(chunks)} 个片段")
             return True
@@ -210,6 +242,21 @@ class VectorDatabaseService:
         
         return final_chunks if final_chunks else [text[:chunk_size]]
     
+    def _build_filter_expression(self, filter_metadata: Dict[str, Any]) -> str:
+        """构建Milvus过滤表达式"""
+        expressions = []
+        for key, value in filter_metadata.items():
+            if isinstance(value, str):
+                expressions.append(f'metadata["{key}"] == "{value}"')
+            elif isinstance(value, (int, float, bool)):
+                expressions.append(f'metadata["{key}"] == {value}')
+            elif isinstance(value, list):
+                # 处理列表类型的IN查询
+                quoted_values = [f'"{v}"' if isinstance(v, str) else str(v) for v in value]
+                expressions.append(f'metadata["{key}"] in [{", ".join(quoted_values)}]')
+        
+        return " && ".join(expressions) if expressions else ""
+    
     async def search(
         self,
         query: str,
@@ -224,22 +271,30 @@ class VectorDatabaseService:
             # 获取查询的嵌入向量
             query_embedding = self.get_embeddings([query])[0]
             
-            # 搜索
-            results = collection.query(
-                query_embeddings=[query_embedding],
-                n_results=top_k,
-                where=filter_metadata,
-                include=["documents", "metadatas", "distances"]
+            # 搜索参数
+            search_params = {
+                "metric_type": "COSINE",
+                "params": {"nprobe": 10}
+            }
+            
+            # 执行搜索
+            results = collection.search(
+                data=[query_embedding],
+                anns_field="embedding",
+                param=search_params,
+                limit=top_k,
+                expr=self._build_filter_expression(filter_metadata) if filter_metadata else None,
+                output_fields=["content", "metadata"]
             )
             
             search_results = []
-            if results and results.get("ids") and results["ids"][0]:
-                for i, doc_id in enumerate(results["ids"][0]):
+            if results and len(results) > 0:
+                for hit in results[0]:
                     search_results.append(SearchResult(
-                        id=doc_id,
-                        content=results["documents"][0][i],
-                        metadata=results["metadatas"][0][i],
-                        score=1.0 - results["distances"][0][i]  # 转换为相似度
+                        id=hit.id,
+                        content=hit.entity.get("content"),
+                        metadata=hit.entity.get("metadata"),
+                        score=hit.score  # Milvus直接返回余弦相似度
                     ))
             
             return search_results
@@ -253,15 +308,10 @@ class VectorDatabaseService:
         try:
             collection = get_patent_collection()
             
-            # 查找所有相关的chunk
-            results = collection.get(
-                where={"doc_id": doc_id},
-                include=[]
-            )
-            
-            if results and results.get("ids"):
-                collection.delete(ids=results["ids"])
-                logger.info(f"文档 {doc_id} 已从向量库删除")
+            # 删除所有相关的chunk
+            expr = f'metadata["doc_id"] == "{doc_id}"'
+            collection.delete(expr)
+            logger.info(f"文档 {doc_id} 已从向量库删除")
             
             return True
         except Exception as e:
@@ -272,10 +322,10 @@ class VectorDatabaseService:
         """获取向量库统计"""
         try:
             collection = get_patent_collection()
-            count = collection.count()
+            count = collection.num_entities
             return {
                 "total_documents": count,
-                "storage_type": "chroma_persistent"
+                "storage_type": "milvus"
             }
         except Exception as e:
             logger.error(f"获取统计失败: {e}")
