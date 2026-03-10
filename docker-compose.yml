@@ -145,6 +145,10 @@ services:
       - REDIS_PORT=6379
       - MILVUS_HOST=milvus
       - MILVUS_PORT=19530
+      - RAG_VECTOR_DB_TYPE=milvus
+      - RAG_MILVUS_HOST=milvus
+      - RAG_MILVUS_PORT=19530
+      - RAG_MILVUS_DB_NAME=patent_rag
       - DOUBAO_API_KEY=${DOUBAO_API_KEY}
       - DOUBAO_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
       - DOUBAO_DEFAULT_MODEL=doubao-seed-code
