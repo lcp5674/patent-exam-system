@@ -79,8 +79,8 @@ class RAGSettings(BaseSettings):
         description="嵌入模型类型"
     )
     EMBEDDING_DIMENSION: int = Field(
-        default=1024,
-        description="嵌入向量维度 (bge-large-zh: 1024, bge-m3: 1024, MiniLM: 384)"
+        default=1536,
+        description="嵌入向量维度 (text-embedding-3-small: 1536, text-embedding-3-large: 3072, bge-large-zh: 1024)"
     )
     EMBEDDING_BATCH_SIZE: int = Field(
         default=32,

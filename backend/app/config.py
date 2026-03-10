@@ -38,11 +38,27 @@ class DatabaseSettings(BaseSettings):
 
 
 class SecuritySettings(BaseSettings):
-    SECRET_KEY: str = "patent-exam-system-secret-key-change-in-production-2024"
+    SECRET_KEY: str = Field(
+        default="",
+        description="JWT签名密钥，未设置时自动生成"
+    )
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-    AES_KEY: str = "0123456789abcdef0123456789abcdef"  # 32 bytes for AES-256
+    AES_KEY: str = Field(
+        default="",
+        description="AES加密密钥，未设置时自动生成"
+    )
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        import secrets
+        if not self.SECRET_KEY:
+            self.SECRET_KEY = secrets.token_hex(32)
+            print("[警告] SECRET_KEY 未设置，已自动生成。请在生产环境中设置 SECURITY_SECRET_KEY 环境变量")
+        if not self.AES_KEY:
+            self.AES_KEY = secrets.token_hex(16)
+            print("[警告] AES_KEY 未设置，已自动生成。请在生产环境中设置 SECURITY_AES_KEY 环境变量")
 
     model_config = {"env_prefix": "", "env_file": ".env", "extra": "ignore"}
 

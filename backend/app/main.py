@@ -107,15 +107,21 @@ async def health_check():
 
 async def _ensure_default_admin():
     """确保存在默认管理员账户"""
+    import os
     from app.database.engine import async_session_factory
     from app.database.models import User
     from app.core.security import get_password_hash
     from sqlalchemy import select
+    
+    default_username = os.getenv("ADMIN_USERNAME", "admin")
+    default_password = os.getenv("ADMIN_PASSWORD", "admin123")
+    
     async with async_session_factory() as db:
-        result = await db.execute(select(User).where(User.username == "admin"))
+        result = await db.execute(select(User).where(User.username == default_username))
         if result.scalar_one_or_none() is None:
-            admin = User(username="admin", password_hash=get_password_hash("admin123"),
+            admin = User(username=default_username, password_hash=get_password_hash(default_password),
                         role="admin", full_name="系统管理员", email="admin@patent-exam.local")
             db.add(admin)
             await db.commit()
-            print("[初始化] 已创建默认管理员账户 (admin/admin123)")
+            print(f"[初始化] 已创建默认管理员账户 ({default_username}/{default_password})")
+            print("[警告] 首次登录后请立即修改默认密码！")
