@@ -336,14 +336,14 @@ class PatentEmbeddingService:
                 base_url=ollama_base_url
             )
         
-        # === 第3优先级：本地 HuggingFace 模型 ===
-        hf_endpoint = getattr(self._settings, 'HF_ENDPOINT', 'https://hf-mirror.com')
-        logger.info(f"使用本地 HuggingFace 模型: {model_name}, HF镜像: {hf_endpoint}")
-        return SentenceTransformerEmbedding(
-            model_name=model_name,
-            device=self._settings.EMBEDDING_DEVICE if self._settings else "cpu",
-            dimension=self._settings.EMBEDDING_DIMENSION if self._settings else 1024,
-            hf_endpoint=hf_endpoint
+        # === 第3优先级：没有配置任何在线嵌入 ===
+        logger.error(f"未配置嵌入模型API，请设置环境变量: RAG_OPENAI_EMBEDDING_API_KEY 或 RAG_ZHIPU_EMBEDDING_API_KEY")
+        raise ValueError(
+            f"未配置嵌入模型: {model_name}。"
+            "请设置以下环境变量之一: "
+            "RAG_OPENAI_EMBEDDING_API_KEY (OpenAI), "
+            "RAG_ZHIPU_EMBEDDING_API_KEY (智谱), "
+            "或 RAG_OLLAMA_BASE_URL (Ollama)"
         )
     
     def _get_cache_key(self, text: str, model_name: str) -> str:

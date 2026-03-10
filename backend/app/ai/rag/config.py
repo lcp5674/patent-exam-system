@@ -75,7 +75,7 @@ class RAGSettings(BaseSettings):
     
     # ─── 嵌入模型配置 ─────────────────────────────────────────
     EMBEDDING_MODEL: EmbeddingModelType = Field(
-        default="BAAI/bge-large-zh-v1.5",
+        default="text-embedding-3-small",
         description="嵌入模型类型"
     )
     EMBEDDING_DIMENSION: int = Field(

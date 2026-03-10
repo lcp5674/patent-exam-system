@@ -3,8 +3,8 @@ uvicorn[standard]==0.32.0
 
 # RAG和向量数据库
 pymilvus==2.4.8
-sentence-transformers==2.7.0
 tiktoken==0.7.0
+zhipuai==2.1.5.20241113
 
 # 消息队列和任务调度
 celery==5.4.0
