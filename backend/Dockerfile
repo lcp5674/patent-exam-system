@@ -5,6 +5,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     curl \
+    build-essential \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir --upgrade pip wheel \
@@ -17,7 +19,6 @@ RUN pip install --no-cache-dir --upgrade pip wheel \
 COPY requirements.txt .
 RUN pip install --no-cache-dir --progress-bar off \
     --prefer-binary \
-    --no-build-isolation \
     -r requirements.txt
 
 COPY . .
