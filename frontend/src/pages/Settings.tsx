@@ -9,7 +9,7 @@ import {
   UserOutlined, LockOutlined, SettingOutlined, RobotOutlined,
   DatabaseOutlined, SaveOutlined, PlusOutlined, DeleteOutlined,
   CheckCircleOutlined, CloseCircleOutlined, EditOutlined, ApiOutlined,
-  SearchOutlined, BarChartOutlined, CloudServerOutlined, GlobalOutlined,
+  SearchOutlined, BarChartOutlined, CloudServerOutlined, GlobalOutlined, CodeOutlined,
 } from "@ant-design/icons";
 import type { RootState } from "../store";
 import api from "../services/api";
@@ -710,6 +710,13 @@ export default function Settings() {
             </Spin>
           ),
         },
+        {
+          key: "system",
+          label: <span><SettingOutlined /> 系统配置</span>,
+          children: (
+            <SystemConfigTab />
+          ),
+        },
       ]} />
 
       <Modal
@@ -760,6 +767,258 @@ export default function Settings() {
           
           <Form.Item name="priority" label="优先级">
             <InputNumber min={0} max={100} style={{ width: "100%" }} />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </Space>
+  );
+}
+
+interface SystemConfig {
+  id: number;
+  config_key: string;
+  config_value: string;
+  config_type: string;
+  category: string;
+  description: string;
+  is_sensitive: boolean;
+  is_user_configurable: boolean;
+  is_public: boolean;
+}
+
+function SystemConfigTab() {
+  const [configs, setConfigs] = useState<SystemConfig[]>([]);
+  const [categories, setCategories] = useState<{name: string; count: number}[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [editModal, setEditModal] = useState<{ visible: boolean; config?: SystemConfig }>({ visible: false });
+  const [editForm] = Form.useForm();
+  const [saving, setSaving] = useState(false);
+  const [initializing, setInitializing] = useState(false);
+
+  useEffect(() => {
+    loadCategories();
+    loadConfigs();
+  }, []);
+
+  useEffect(() => {
+    loadConfigs();
+  }, [selectedCategory]);
+
+  const loadCategories = async () => {
+    try {
+      const res = await api.get("/system/configs/categories");
+      if (res.data?.code === 200) {
+        setCategories(res.data.data || []);
+      }
+    } catch (error) {
+      console.error("加载分类失败:", error);
+    }
+  };
+
+  const loadConfigs = async () => {
+    setLoading(true);
+    try {
+      const url = selectedCategory 
+        ? `/system/configs?category=${selectedCategory}` 
+        : "/system/configs";
+      const res = await api.get(url);
+      if (res.data?.code === 200) {
+        setConfigs(res.data.data || []);
+      }
+    } catch (error) {
+      console.error("加载配置失败:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = (config: SystemConfig) => {
+    setEditModal({ visible: true, config });
+    editForm.setFieldsValue({
+      config_value: config.is_sensitive ? "" : config.config_value,
+      description: config.description,
+      is_user_configurable: config.is_user_configurable,
+      is_public: config.is_public,
+    });
+  };
+
+  const handleSave = async (values: any) => {
+    if (!editModal.config) return;
+    
+    setSaving(true);
+    try {
+      const res = await api.put(`/system/configs/${editModal.config.config_key}`, values);
+      if (res.data?.code === 200) {
+        message.success("配置更新成功");
+        setEditModal({ visible: false });
+        loadConfigs();
+      } else {
+        message.error(res.data?.message || "更新失败");
+      }
+    } catch (error: any) {
+      message.error(error.response?.data?.detail || "更新失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleInitialize = async () => {
+    setInitializing(true);
+    try {
+      const res = await api.post("/system/configs/initialize");
+      if (res.data?.code === 200) {
+        message.success(`成功初始化 ${res.data.data.created_count} 个配置`);
+        loadConfigs();
+        loadCategories();
+      }
+    } catch (error: any) {
+      message.error(error.response?.data?.detail || "初始化失败");
+    } finally {
+      setInitializing(false);
+    }
+  };
+
+  const getTypeTag = (type: string) => {
+    const tags: Record<string, { color: string; text: string }> = {
+      string: { color: "blue", text: "字符串" },
+      number: { color: "green", text: "数字" },
+      boolean: { color: "orange", text: "布尔" },
+      json: { color: "purple", text: "JSON" },
+    };
+    const tag = tags[type] || { color: "default", text: type };
+    return <Tag color={tag.color}>{tag.text}</Tag>;
+  };
+
+  const columns = [
+    {
+      title: "配置键",
+      dataIndex: "config_key",
+      key: "config_key",
+      width: 200,
+      render: (key: string, record: SystemConfig) => (
+        <Space>
+          <CodeOutlined />
+          <Text code>{key}</Text>
+          {record.is_sensitive && <Tag color="red">敏感</Tag>}
+        </Space>
+      ),
+    },
+    {
+      title: "配置值",
+      dataIndex: "config_value",
+      key: "config_value",
+      render: (value: string, record: SystemConfig) => (
+        <Text style={{ maxWidth: 200 }} ellipsis>
+          {record.is_sensitive ? "••••••••" : value || "-"}
+        </Text>
+      ),
+    },
+    {
+      title: "类型",
+      dataIndex: "config_type",
+      key: "config_type",
+      width: 80,
+      render: (type: string) => getTypeTag(type),
+    },
+    {
+      title: "分类",
+      dataIndex: "category",
+      key: "category",
+      width: 100,
+      render: (cat: string) => <Tag>{cat || "general"}</Tag>,
+    },
+    {
+      title: "描述",
+      dataIndex: "description",
+      key: "description",
+      ellipsis: true,
+    },
+    {
+      title: "操作",
+      key: "action",
+      width: 120,
+      render: (_: any, record: SystemConfig) => (
+        <Space>
+          <Button 
+            type="link" 
+            size="small" 
+            icon={<EditOutlined />}
+            onClick={() => handleEdit(record)}
+          >
+            编辑
+          </Button>
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+      <Row justify="space-between" align="middle">
+        <Col>
+          <Space>
+            <Text strong>分类筛选:</Text>
+            <Select
+              style={{ width: 150 }}
+              placeholder="选择分类"
+              allowClear
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+            >
+              {categories.map((cat) => (
+                <Option key={cat.name} value={cat.name}>
+                  {cat.name} ({cat.count})
+                </Option>
+              ))}
+            </Select>
+          </Space>
+        </Col>
+        <Col>
+          <Button 
+            icon={<SettingOutlined />} 
+            onClick={handleInitialize}
+            loading={initializing}
+          >
+            初始化默认配置
+          </Button>
+        </Col>
+      </Row>
+
+      <Table
+        columns={columns}
+        dataSource={configs}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 20 }}
+        size="small"
+      />
+
+      <Modal
+        title={`编辑配置: ${editModal.config?.config_key}`}
+        open={editModal.visible}
+        onOk={() => editForm.submit()}
+        onCancel={() => setEditModal({ visible: false })}
+        confirmLoading={saving}
+        width={500}
+      >
+        <Form form={editForm} layout="vertical" onFinish={handleSave}>
+          <Form.Item name="config_value" label="配置值">
+            <Input.Password 
+              placeholder={editModal.config?.is_sensitive ? "留空保持原值" : "请输入配置值"} 
+            />
+          </Form.Item>
+          
+          <Form.Item name="description" label="描述">
+            <Input.TextArea rows={2} placeholder="配置描述" />
+          </Form.Item>
+          
+          <Form.Item name="is_user_configurable" label="用户可配置" valuePropName="checked">
+            <Switch checkedChildren="是" unCheckedChildren="否" />
+          </Form.Item>
+          
+          <Form.Item name="is_public" label="公开配置" valuePropName="checked">
+            <Switch checkedChildren="是" unCheckedChildren="否" />
           </Form.Item>
         </Form>
       </Modal>

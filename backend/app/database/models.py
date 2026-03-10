@@ -295,9 +295,12 @@ class SystemConfig(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     config_key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     config_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    config_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # string / number / boolean / json
+    config_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_sensitive: Mapped[bool] = mapped_column(Boolean, default=False)
     is_user_configurable: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
