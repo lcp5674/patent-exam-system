@@ -1,39 +1,33 @@
 FROM python:3.10-slim
 
-# 设置工作目录
 WORKDIR /app
 
-# 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
     libpq-dev \
-    git \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 升级pip并设置镜像源加速
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
+RUN pip install --no-cache-dir --upgrade pip wheel \
     && pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
     && pip config set global.trusted-host mirrors.aliyun.com \
-    && pip config set global.timeout 120 \
-    && pip config set global.retries 5
+    && pip config set global.timeout 300 \
+    && pip config set global.retries 6 \
+    && pip config set global.disable-pip-version-check true
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir --progress-bar off -r requirements.txt --use-feature=fast-deps 2>/dev/null || pip install --no-cache-dir --progress-bar off -r requirements.txt
+RUN pip install --no-cache-dir --progress-bar off \
+    --prefer-binary \
+    --only-binary=:all: \
+    --no-build-isolation \
+    -r requirements.txt
 
-# 复制应用代码
 COPY . .
 
-# 创建必要的目录
 RUN mkdir -p /app/data /app/uploads /app/logs
 
-# 暴露端口
 EXPOSE 8000
 
-# 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD curl -f http://localhost:8000/api/v1/health || exit 1
 
-# 启动命令
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
