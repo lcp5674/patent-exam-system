@@ -17,7 +17,6 @@ RUN pip install --no-cache-dir --upgrade pip wheel \
 COPY requirements.txt .
 RUN pip install --no-cache-dir --progress-bar off \
     --prefer-binary \
-    --only-binary=:all: \
     --no-build-isolation \
     -r requirements.txt
 
