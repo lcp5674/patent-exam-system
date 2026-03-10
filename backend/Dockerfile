@@ -12,6 +12,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# 设置pip镜像源加速下载
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
+    && pip config set global.trusted-host mirrors.aliyun.com
+
 # 安装Python依赖
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
