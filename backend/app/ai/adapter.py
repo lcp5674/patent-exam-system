@@ -3,6 +3,23 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional, AsyncIterator
+import socket
+import logging
+
+logger = logging.getLogger(__name__)
+
+def safe_network_call(func):
+    """装饰器：安全处理网络调用中的socket错误"""
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except socket.gaierror as e:
+            logger.warning(f"网络调用失败 (DNS解析错误): {e}")
+            raise ConnectionError(f"DNS解析失败: {e}")
+        except OSError as e:
+            logger.warning(f"网络调用失败: {e}")
+            raise ConnectionError(f"网络错误: {e}")
+    return wrapper
 
 
 @dataclass

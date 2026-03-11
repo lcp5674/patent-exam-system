@@ -7,7 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
     python3-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 RUN pip install --no-cache-dir --upgrade pip wheel \
     && pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
@@ -19,6 +20,7 @@ RUN pip install --no-cache-dir --upgrade pip wheel \
 COPY requirements.txt .
 RUN pip install --no-cache-dir --progress-bar off \
     --prefer-binary \
+    -r requirements.txt || pip install --no-cache-dir --progress-bar off \
     -r requirements.txt
 
 COPY . .

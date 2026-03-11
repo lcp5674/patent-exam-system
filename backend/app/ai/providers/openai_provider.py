@@ -4,6 +4,7 @@ from typing import Optional, AsyncIterator
 import httpx
 import json
 import logging
+import socket
 from app.config import settings
 from app.ai.adapter import AIProviderAdapter, AICompletionResponse
 
@@ -26,10 +27,17 @@ class OpenAIProvider(AIProviderAdapter):
     async def chat_completion(self, messages, model=None, temperature=0.7, max_tokens=4096, stream=False) -> AICompletionResponse:
         model = model or self.default_model
         payload = {"model": model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens, "stream": False}
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.post(f"{self.base_url}/chat/completions", headers=self._headers(), json=payload)
-            resp.raise_for_status()
-            data = resp.json()
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await client.post(f"{self.base_url}/chat/completions", headers=self._headers(), json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+        except socket.gaierror as e:
+            logger.error(f"[OpenAI] DNS解析失败: {e}")
+            raise ConnectionError(f"无法连接到 {self.base_url}，请检查网络配置")
+        except httpx.ConnectError as e:
+            logger.error(f"[OpenAI] 连接失败: {e}")
+            raise ConnectionError(f"无法连接到 {self.base_url}，请检查网络配置")
         choice = data["choices"][0]
         usage = data.get("usage", {})
         return AICompletionResponse(
@@ -61,9 +69,12 @@ class OpenAIProvider(AIProviderAdapter):
         if not self.api_key:
             return False
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with httpx.AsyncClient(timeout=10, limits=httpx.Limits(connect=5.0, read=5.0)) as client:
                 resp = await client.get(f"{self.base_url}/models", headers=self._headers())
                 return resp.status_code == 200
+        except socket.gaierror:
+            logger.warning(f"[OpenAI] DNS解析失败，跳过健康检查")
+            return False
         except Exception:
             return False
 

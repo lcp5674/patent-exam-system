@@ -1,6 +1,7 @@
 """AI 提供商管理器 - 统一管理多个大模型提供商"""
 from __future__ import annotations
 import logging
+import socket
 from typing import Optional, AsyncIterator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -37,6 +38,8 @@ class ProviderManager:
                 provider = cls()
                 self._providers[provider.name] = provider
                 logger.info(f"[AI] 已注册提供商: {provider.display_name}")
+            except socket.gaierror as e:
+                logger.warning(f"[AI] 注册提供商失败 {cls.__name__}: DNS解析错误 - {e}")
             except Exception as e:
                 logger.warning(f"[AI] 注册提供商失败 {cls.__name__}: {e}")
 

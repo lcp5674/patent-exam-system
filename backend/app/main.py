@@ -5,6 +5,7 @@ Patent Examination Assistant System
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import socket
 from app.config import settings
 from app.database.engine import init_db, close_db
 from app.database.migrations import run_migrations
@@ -101,7 +102,11 @@ async def health_check():
     from app.core.monitoring import monitoring
     status = monitoring.get_status()
     from app.core.cache import cache
-    status["redis_connected"] = await cache.ping()
+    try:
+        status["redis_connected"] = await cache.ping()
+    except Exception as e:
+        status["redis_connected"] = False
+        status["redis_error"] = str(e)
     return status
 
 
