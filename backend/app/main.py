@@ -19,20 +19,51 @@ async def lifespan(app: FastAPI):
     # ── 启动 ──
     setup_logging()
     settings.ensure_dirs()
-    await run_migrations()
-    # 初始化 AI 提供商
-    from app.ai.provider_manager import provider_manager
-    await provider_manager.initialize()
+    
+    # 数据库迁移
+    try:
+        await run_migrations()
+    except Exception as e:
+        print(f"[警告] 数据库迁移失败: {e}")
+    
+    # 初始化 AI 提供商 (不阻塞启动)
+    try:
+        from app.ai.provider_manager import provider_manager
+        await provider_manager.initialize()
+    except socket.gaierror as e:
+        print(f"[警告] AI提供商初始化失败 (DNS错误): {e}")
+    except Exception as e:
+        print(f"[警告] AI提供商初始化失败: {e}")
+    
     # 从数据库加载 AI 配置
-    from app.database.engine import async_session_factory
-    async with async_session_factory() as db:
-        await provider_manager.load_db_configs(db)
+    try:
+        from app.database.engine import async_session_factory
+        async with async_session_factory() as db:
+            await provider_manager.load_db_configs(db)
+    except socket.gaierror as e:
+        print(f"[警告] 加载AI配置失败 (DNS错误): {e}")
+    except Exception as e:
+        print(f"[警告] 加载AI配置失败: {e}")
+    
     # 初始化预置专利审查规则
-    async with async_session_factory() as db:
-        from app.services.init_rules import init_patent_rules
-        await init_patent_rules(db)
+    try:
+        from app.database.engine import async_session_factory
+        async with async_session_factory() as db:
+            from app.services.init_rules import init_patent_rules
+            await init_patent_rules(db)
+    except socket.gaierror as e:
+        print(f"[警告] 初始化规则失败 (DNS错误): {e}")
+    except Exception as e:
+        print(f"[警告] 初始化规则失败: {e}")
+    
     # 初始化默认管理员
-    await _ensure_default_admin()
+    try:
+        await _ensure_default_admin()
+    except socket.gaierror as e:
+        print(f"[警告] 初始化管理员失败 (DNS错误): {e}")
+    except Exception as e:
+        print(f"[警告] 初始化管理员失败: {e}")
+    
     print(f"[启动] {settings.app.APP_NAME} v{settings.app.APP_VERSION} 已就绪")
     print(f"[数据库] 类型: {settings.db.db_type}")
     yield
