@@ -14,11 +14,13 @@ RUN pip install --no-cache-dir --upgrade pip wheel \
     && pip config set global.trusted-host mirrors.aliyun.com \
     && pip config set global.timeout 300 \
     && pip config set global.retries 6 \
-    && pip config set global.disable-pip-version-check true
+    && pip config set global.disable-pip-version-check true \
+    && pip config set global.max-depth 10
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir --progress-bar off \
     --prefer-binary \
+    --use-deprecated=legacy-resolver \
     -r requirements.txt
 
 COPY . .
