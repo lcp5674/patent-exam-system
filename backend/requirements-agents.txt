@@ -1,0 +1,5 @@
+# Agent框架 (可选安装)
+# 如需使用CrewAI多Agent系统，请单独安装此文件
+# pip install -r requirements-agents.txt
+crewai==0.86.0
+crewai-tools==0.12.0

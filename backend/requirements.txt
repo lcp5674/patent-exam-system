@@ -11,9 +11,6 @@ celery==5.4.0
 redis==5.2.0
 schedule==1.2.2
 
-# Agent框架
-crewai==0.86.0
-
 # Web爬虫
 requests==2.32.3
 playwright==1.48.0
